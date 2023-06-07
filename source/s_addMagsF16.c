@@ -112,30 +112,44 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
             /*----------------------------------------------------------------
             *----------------------------------------------------------------*/
             uiZ = uiA;
+            // if expA is all 1s
             if ( expA == 0x1F ) {
                 if ( sigA ) goto propagateNaN;
                 goto uiZ;
             }
+            // B is too small, chop to zero
+            // why 13: SigY has 11 bits, so it can right shift 12 bits at most.
             if ( 13 <= expDiff ) {
+               // todo why this codition
                 if ( expB | sigB ) goto addEpsilon;
                 goto uiZ;
             }
+            // here expDiff max = 12
             expZ = expA;
+            // restore tehe hiden 1
             sigX = sigA | 0x0400;
+            // if expB ==0 ?
             sigY = sigB + (expB ? 0x0400 : sigB);
             shiftDist = 19 - expDiff;
         }
+        // |A+B with carry | B shift   | space|
+        // |    12         |    12     |   8  |
         sig32Z =
             ((uint_fast32_t) sigX<<19) + ((uint_fast32_t) sigY<<shiftDist);
+        // why left shift 19 : to align carry bit to 31th bits
+        // Normalization
         if ( sig32Z < 0x40000000 ) {
             --expZ;
             sig32Z <<= 1;
         }
+        // |A+B with carry |B|
+        // | 12            |4|
         sigZ = sig32Z>>16;
-        if ( sig32Z & 0xFFFF ) {
+        if ( sig32Z & 0xFFFF ) {// sig32Z_low != 0
+            // set sigX[0] to 1
             sigZ |= 1;
-        } else {
-            if ( ! (sigZ & 0xF) && (expZ < 0x1E) ) {
+        } else { // sig32Z_low == 0
+            if ( ! (sigZ & 0xF) && (expZ < 0x1E) ) {// no need to round
                 sigZ >>= 4;
                 goto pack;
             }
