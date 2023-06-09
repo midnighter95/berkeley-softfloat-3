@@ -54,8 +54,12 @@ float16_t
     *------------------------------------------------------------------------*/
     roundingMode = softfloat_roundingMode;
     roundNearEven = (roundingMode == softfloat_round_near_even);
+    // default to b1000
     roundIncrement = 0x8;
+    // except NearEven, near_maxMag
     if ( ! roundNearEven && (roundingMode != softfloat_round_near_maxMag) ) {
+        // sign = 1, mode = round_min => 0xF
+        // sign = 0, mode = round_max => 0xF
         roundIncrement =
             (roundingMode
                  == (sign ? softfloat_round_min : softfloat_round_max))
@@ -65,6 +69,8 @@ float16_t
     roundBits = sig & 0xF;
     /*------------------------------------------------------------------------
     *------------------------------------------------------------------------*/
+    // todo: why
+    // 0x1D = b11101
     if ( 0x1D <= (unsigned int) exp ) {
         if ( exp < 0 ) {
             /*----------------------------------------------------------------
@@ -89,6 +95,7 @@ float16_t
     }
     /*------------------------------------------------------------------------
     *------------------------------------------------------------------------*/
+    // rounding sig[3:0]
     sig = (sig + roundIncrement)>>4;
     if ( roundBits ) {
         softfloat_exceptionFlags |= softfloat_flag_inexact;

@@ -87,7 +87,7 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
             goto pack;
         }
         sigZ <<= 3;
-    } else {
+    } else {// expDiff != 0
         /*--------------------------------------------------------------------
         *--------------------------------------------------------------------*/
         signZ = signF16UI( uiA );
@@ -108,7 +108,7 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
             sigX = sigB | 0x0400;
             sigY = sigA + (expA ? 0x0400 : sigA);
             shiftDist = 19 + expDiff;
-        } else {
+        } else { // expDiff > 0
             /*----------------------------------------------------------------
             *----------------------------------------------------------------*/
             uiZ = uiA;
@@ -124,11 +124,11 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
                 if ( expB | sigB ) goto addEpsilon;
                 goto uiZ;
             }
-            // here expDiff max = 12
+            // now expDiff <= 12
             expZ = expA;
-            // restore tehe hiden 1
+            // restore the hiden 1
             sigX = sigA | 0x0400;
-            // if expB ==0 ?
+            // if expB == 0 ?
             sigY = sigB + (expB ? 0x0400 : sigB);
             shiftDist = 19 - expDiff;
         }
@@ -145,10 +145,11 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
         // |A+B with carry |B|
         // | 12            |4|
         sigZ = sig32Z>>16;
-        if ( sig32Z & 0xFFFF ) {// sig32Z_low != 0
+        if ( sig32Z & 0xFFFF ) {// sig32Z[15:0] != 0
+            // todo: it's rounding too!
             // set sigX[0] to 1
             sigZ |= 1;
-        } else { // sig32Z_low == 0
+        } else { // sig32Z[15:0]  == 0
             if ( ! (sigZ & 0xF) && (expZ < 0x1E) ) {// no need to round
                 sigZ >>= 4;
                 goto pack;
