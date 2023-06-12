@@ -52,6 +52,8 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
     bool signZ;
     int_fast8_t expZ;
     uint_fast16_t sigZ;
+    // the sig after restore
+    // X won't shift, Y will shift
     uint_fast16_t sigX, sigY;
     int_fast8_t shiftDist;
     uint_fast32_t sig32Z;
@@ -105,6 +107,7 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
                 goto uiZ;
             }
             expZ = expB;
+            // restore the hiden 1
             sigX = sigB | 0x0400;
             sigY = sigA + (expA ? 0x0400 : sigA);
             shiftDist = 19 + expDiff;
@@ -117,45 +120,54 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
                 if ( sigA ) goto propagateNaN;
                 goto uiZ;
             }
-            // B is too small, chop to zero
+            // Diff is too big
             // why 13: SigY has 11 bits, so it can right shift 12 bits at most.
             if ( 13 <= expDiff ) {
-               // todo why this codition
+                // B is not zero
                 if ( expB | sigB ) goto addEpsilon;
+                // B is zero
                 goto uiZ;
             }
             // now expDiff <= 12
             expZ = expA;
             // restore the hiden 1
             sigX = sigA | 0x0400;
-            // if expB == 0 ?
+            // when expB == 0 => subnormal, to restore it, just 2sigB
             sigY = sigB + (expB ? 0x0400 : sigB);
             shiftDist = 19 - expDiff;
         }
-        // |A+B with carry | B shift   | space|
-        // |    12         |    12     |   8  |
+        // ----------------------------------------------------------
+        // Add flow start
+        // why left shift 19 : to align carry bit to 31th bits
+        // sig32Z format
+
+        // |0|X+Y_high with carry | Y_low     | space|
+        // |1|    12              |    12     |   7  |
         sig32Z =
             ((uint_fast32_t) sigX<<19) + ((uint_fast32_t) sigY<<shiftDist);
-        // why left shift 19 : to align carry bit to 31th bits
         // Normalization
+        // 01zzzzzz
         if ( sig32Z < 0x40000000 ) {
             --expZ;
             sig32Z <<= 1;
         }
-        // |A+B with carry |B|
-        // | 12            |4|
+        // sigZ format
+        // |01| sig        |more bits|
+        // | 2| 10         |4        |
         sigZ = sig32Z>>16;
-        if ( sig32Z & 0xFFFF ) {// sig32Z[15:0] != 0
-            // todo: it's rounding too!
-            // set sigX[0] to 1
+        // if sig32Z[15:0] != 0, set sigX[0] to 1
+        // todo: why this rounding happens?
+        if ( sig32Z & 0xFFFF ) {
             sigZ |= 1;
-        } else { // sig32Z[15:0]  == 0
-            if ( ! (sigZ & 0xF) && (expZ < 0x1E) ) {// no need to round
+        } else { // sig32Z[15:0] all 0s
+            // no need to round
+            if ( ! (sigZ & 0xF) && (expZ < 0x1E) ) {
                 sigZ >>= 4;
                 goto pack;
             }
         }
     }
+    // sigZ is normalized 16bits
     return softfloat_roundPackToF16( signZ, expZ, sigZ );
     /*------------------------------------------------------------------------
     *------------------------------------------------------------------------*/
@@ -189,6 +201,8 @@ float16_t softfloat_addMagsF16( uint_fast16_t uiA, uint_fast16_t uiB )
     /*------------------------------------------------------------------------
     *------------------------------------------------------------------------*/
  pack:
+    // sig format
+    // 01zzzzzzzzzz
     uiZ = packToF16UI( signZ, expZ, sigZ );
  uiZ:
     uZ.ui = uiZ;

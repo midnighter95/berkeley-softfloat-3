@@ -54,12 +54,16 @@ float16_t
     *------------------------------------------------------------------------*/
     roundingMode = softfloat_roundingMode;
     roundNearEven = (roundingMode == softfloat_round_near_even);
-    // default to b1000
+    // why default to b1000
+    // if roundBits >= 8 , then round up
     roundIncrement = 0x8;
     // except NearEven, near_maxMag
     if ( ! roundNearEven && (roundingMode != softfloat_round_near_maxMag) ) {
-        // sign = 1, mode = round_min => 0xF
-        // sign = 0, mode = round_max => 0xF
+        // why set to 0xF: if roundBits != 0, then round up
+        // sign = 1, mode = round_max => roundIncrement = 0
+        // sign = 1, mode = round_min => roundIncrement = 0xF
+        // sign = 0, mode = round_max => roundIncrement = 0xF
+        // sign = 0, mode = round_min => roundIncrement = 0
         roundIncrement =
             (roundingMode
                  == (sign ? softfloat_round_min : softfloat_round_max))
@@ -84,7 +88,7 @@ float16_t
             if ( isTiny && roundBits ) {
                 softfloat_raiseFlags( softfloat_flag_underflow );
             }
-        } else if ( (0x1D < exp) || (0x8000 <= sig + roundIncrement) ) {
+        } else if ( (0x1D < exp) || (0x8000 <= sig + roundIncrement) ) {// sig overflow, then exp overflow
             /*----------------------------------------------------------------
             *----------------------------------------------------------------*/
             softfloat_raiseFlags(
@@ -106,6 +110,7 @@ float16_t
         }
 #endif
     }
+    // when roundbits = 8, round to even
     sig &= ~(uint_fast16_t) (! (roundBits ^ 8) & roundNearEven);
     if ( ! sig ) exp = 0;
     /*------------------------------------------------------------------------
